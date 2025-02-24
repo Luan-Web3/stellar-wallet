@@ -25,9 +25,9 @@ impl Keys {
         }
     }
 
-    pub fn get_public_key_from_private(secret_key: &str) -> Result<(String, String), MyError> {
+    pub fn get_public_key_from_private(secret_key: &str) -> Result<SodiumKeyPair, MyError> {
         match SodiumKeyPair::from_secret_seed(secret_key) {
-            Ok(keypair) => Self::extract_keys_from_keypair(keypair),
+            Ok(keypair) => Ok(keypair),
             Err(e) => Err(MyError(format!("Failed to generate keys: {}", e))),
         }
     }
