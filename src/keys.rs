@@ -1,25 +1,41 @@
-use anyhow::Error;
 use serde::Deserialize;
-use stellar_sdk::Keypair;
+use std::fmt;
+use std::result::Result::Ok;
+use stellar_base::crypto::SodiumKeyPair;
+
+#[derive(Debug)]
+pub struct MyError(String);
+
+impl fmt::Display for MyError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for MyError {}
 
 #[derive(Deserialize, Debug)]
 pub struct Keys {}
 
 impl Keys {
-    fn extract_keys_from_keypair(mut keypair: Keypair) -> Result<(String, String), Error> {
-        let public_key = keypair.public_key();
-        let secret_key = keypair.secret_key()?;
+    pub fn generate_stellar_keys() -> Result<(String, String), MyError> {
+        match SodiumKeyPair::random() {
+            Ok(keypair) => Self::extract_keys_from_keypair(keypair),
+            Err(e) => Err(MyError(format!("Failed to generate keys: {}", e))),
+        }
+    }
+
+    pub fn get_public_key_from_private(secret_key: &str) -> Result<(String, String), MyError> {
+        match SodiumKeyPair::from_secret_seed(secret_key) {
+            Ok(keypair) => Self::extract_keys_from_keypair(keypair),
+            Err(e) => Err(MyError(format!("Failed to generate keys: {}", e))),
+        }
+    }
+
+    fn extract_keys_from_keypair(keypair: SodiumKeyPair) -> Result<(String, String), MyError> {
+        let public_key = keypair.public_key().account_id();
+        let secret_key = keypair.secret_key().secret_seed();
         Ok((public_key, secret_key))
-    }
-
-    pub fn generate_stellar_keys() -> Result<(String, String), Error> {
-        let keypair = Keypair::random()?;
-        Self::extract_keys_from_keypair(keypair)
-    }
-
-    pub fn get_public_key_from_private(secret_key: &str) -> Result<(String, String), Error> {
-        let keypair = Keypair::from_secret_key(secret_key)?;
-        Self::extract_keys_from_keypair(keypair)
     }
 }
 
