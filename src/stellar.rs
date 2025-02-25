@@ -1,34 +1,28 @@
 use crate::keys::Keys;
-use anyhow::{Context, Error, Ok, Result};
-use chrono::Duration;
+use anyhow::{Context, Ok, Result};
 use reqwest::Client;
 use serde_json::Value;
 use std::str::FromStr;
 use stellar_base::amount::Amount;
 use stellar_base::asset::Asset;
-use stellar_base::crypto::{PublicKey, SodiumKeyPair};
+use stellar_base::crypto::PublicKey;
 use stellar_base::memo::Memo;
 use stellar_base::network::Network;
 use stellar_base::operations::Operation;
 use stellar_base::time_bounds::TimeBounds;
 use stellar_base::transaction::{Transaction, MIN_BASE_FEE};
 use stellar_base::xdr::XDRSerialize;
-// use stellar_base::{
-//     amount::Amount,
-//     crypto::KeyPair,
-//     network::Network,
-//     operations::Operation,
-//     transaction::{Transaction, TransactionEnvelope},
-//     Asset,
-// };
+
 pub struct Stellar {
     horizon_url: String,
+    friendbot_url: String,
 }
 
 impl Stellar {
     pub fn new(horizon_url: &str) -> Self {
         Self {
             horizon_url: horizon_url.to_string(),
+            friendbot_url: "https://friendbot.stellar.org".to_string(),
         }
     }
 
@@ -57,12 +51,10 @@ impl Stellar {
         destination_public: &str,
         amount: &str,
     ) -> Result<Vec<Value>> {
-        println!("==============");
         let client = Client::new();
 
         let source_kp = Keys::get_public_key_from_private(source_secret)?;
         let destination = PublicKey::from_account_id(destination_public)?;
-        println!("Destination {:?}", destination);
 
         let payment_amount = Amount::from_str(amount)?;
 
@@ -75,7 +67,6 @@ impl Stellar {
             Self::get_account_sequence(&self, &source_kp.public_key().to_string()).await?;
 
         let next_sequence = current_sequence + 1;
-        println!("PUBLIC KEY {}", source_kp.public_key());
 
         let time_bounds = TimeBounds::always_valid();
 
@@ -90,7 +81,6 @@ impl Stellar {
 
         let url = format!("{}/transactions", self.horizon_url);
 
-        println!("XDR: {:?}", xdr);
         let response = client
             .post(&url)
             .form(&[("tx", xdr)])
@@ -99,12 +89,31 @@ impl Stellar {
             .context("Failed to send request")?;
 
         if !response.status().is_success() {
-            println!("{:?}", response);
             anyhow::bail!("Failed to fetch account: {}", response.status());
         }
 
         let res_data: Value = response.json().await.context("Failed to parse JSON")?;
-        println!("{:?}", res_data);
+
+        Ok(res_data.as_array().unwrap_or(&vec![]).to_vec())
+    }
+
+    pub async fn fund_account_with_friendbot(&self, public_key: &str) -> Result<Vec<Value>> {
+        let url = format!("{}/?addr={}", self.friendbot_url, public_key);
+
+        let client = Client::new();
+
+        let response = client
+            .get(&url)
+            .send()
+            .await
+            .context("Failed to send request")?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("Failed to fetch account: {}", response.status());
+        }
+
+        let res_data: Value = response.json().await.context("Failed to parse JSON")?;
+
         Ok(res_data.as_array().unwrap_or(&vec![]).to_vec())
     }
 
@@ -114,15 +123,10 @@ impl Stellar {
         let response = reqwest::get(&url).await?;
         let account_data: Value = response.json().await?;
 
-        println!("Account Data {:?}", account_data["sequence"]);
-
-        // Extract sequence number and convert to i64
         let sequence = account_data["sequence"]
             .as_str()
             .ok_or(anyhow::anyhow!("No sequence found"))?
             .parse::<i64>()?;
-
-        println!("seque: {:?}", sequence);
 
         Ok(sequence)
     }
