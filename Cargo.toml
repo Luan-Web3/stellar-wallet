@@ -3,6 +3,13 @@ name = "stellar_wallet"
 version = "0.1.0"
 edition = "2021"
 
+description = "This project is a Rust library for interacting with the Stellar network, offering essential functionalities for developers looking to integrate XLM operations into their applications."
+authors = ["Luan Henrique <luansilvalemes.web3@gmail.com>"]
+repository = "https://github.com/Luan-Web3/stellar-wallet"
+readme = "README.md"
+license = "MIT"
+keywords = ["stellar", "stellar", "keypair"]
+
 [dependencies]
 dotenvy = "0.15.7"
 reqwest = { version = "0.11", features = ["json"] }
